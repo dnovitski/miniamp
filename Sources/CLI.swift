@@ -46,8 +46,11 @@ enum CLI {
         case "version", "--version":
             print("miniamp \(AppInfo.version)")
             return 0
-        default:
+        case "help", "-h", "--help":
             return usage(0)
+        default:
+            print("Unknown command: \(command)\n")
+            return usage()
         }
     }
 
@@ -66,7 +69,7 @@ enum CLI {
             print("\(st == .running ? "●" : "○") \(svc.name.padding(toLength: 11, withPad: " ", startingAt: 0)) \(st.label.lowercased()) (\(svc.detail))")
         }
         print("Start at login: \(Launchd.autostart ? "on" : "off")")
-        let missing = Setup.steps.filter { !$0.check() }
+        let missing = Setup.activeSteps.filter { !$0.check() }
         if !missing.isEmpty {
             print("Setup incomplete: \(missing.map(\.title).joined(separator: ", ")). Run `miniamp install`.")
         }

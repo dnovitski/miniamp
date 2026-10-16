@@ -182,7 +182,7 @@ struct SetupView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Setup.steps) { step in
+                    ForEach(Setup.activeSteps) { step in
                         HStack(spacing: 10) {
                             StepIcon(state: setup.states[step.id])
                             VStack(alignment: .leading, spacing: 1) {
@@ -285,6 +285,9 @@ struct LogView: View {
                 .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
                 .onChange(of: setup.lines.count) { _, _ in
+                    if let last = setup.lines.last { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+                .onAppear {
                     if let last = setup.lines.last { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }

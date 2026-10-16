@@ -19,6 +19,8 @@ struct SetupStep: Identifiable {
     let detail: String
     let check: () -> Bool
     let run: (_ log: @escaping (String) -> Void) throws -> Void
+    /// Steps that only make sense for some installs (e.g. Homebrew) are hidden otherwise.
+    var applies: () -> Bool = { true }
 }
 
 enum Setup {
@@ -139,9 +141,7 @@ enum Setup {
                   }),
 
         SetupStep(id: "cli", title: "Command line tool", detail: "miniamp in \(Paths.brew)/bin",
-                  check: {
-                      (try? FileManager.default.destinationOfSymbolicLink(atPath: Paths.cliLink)) == AppInfo.executable.path
-                  },
+                  check: { cliTarget() == AppInfo.executable.path || brewManagedCLI() },
                   run: { log in
                       let fm = FileManager.default
                       if (try? fm.destinationOfSymbolicLink(atPath: Paths.cliLink)) == nil && fm.fileExists(atPath: Paths.cliLink) {
@@ -151,9 +151,33 @@ enum Setup {
                       try fm.createSymbolicLink(atPath: Paths.cliLink, withDestinationPath: AppInfo.executable.path)
                       log("Linked \(Paths.cliLink) -> \(AppInfo.executable.path)")
                   }),
+
+        // Spotlight and Launchpad don't follow symlinks, so a Homebrew install gets a real copy in ~/Applications.
+        // After `brew upgrade` the copy is outdated and this step shows up again.
+        SetupStep(id: "app-copy", title: "Miniamp in Applications", detail: "Copy of the Homebrew app, for Spotlight and Launchpad",
+                  check: {
+                      let copy = AppInfo.versionString(ofApp: Paths.userApp)
+                      return copy != nil && copy == AppInfo.versionString(ofApp: Paths.brewApp)
+                  },
+                  run: { log in
+                      let fm = FileManager.default
+                      if fm.fileExists(atPath: Paths.userApp) && AppInfo.versionString(ofApp: Paths.userApp) == nil {
+                          throw SetupError("\(Paths.userApp) exists and is not Miniamp; leaving it alone.")
+                      }
+                      try? fm.removeItem(atPath: Paths.userApp)
+                      try fm.createDirectory(atPath: (Paths.userApp as NSString).deletingLastPathComponent,
+                                             withIntermediateDirectories: true)
+                      try fm.copyItem(atPath: URL(fileURLWithPath: Paths.brewApp).resolvingSymlinksInPath().path,
+                                      toPath: Paths.userApp)
+                      log("Copied Miniamp \(AppInfo.versionString(ofApp: Paths.userApp) ?? "") to \(Paths.userApp)")
+                      if AppInfo.bundleURL.path == Paths.userApp { log("Quit and reopen Miniamp to use the new version.") }
+                  },
+                  applies: { FileManager.default.fileExists(atPath: Paths.brewApp) }),
     ]
 
-    static var isInstalled: Bool { steps.allSatisfy { $0.check() } }
+    /// The steps that apply to this install.
+    static var activeSteps: [SetupStep] { steps.filter { $0.applies() } }
+    static var isInstalled: Bool { activeSteps.allSatisfy { $0.check() } }
 
     // MARK: operations
 
@@ -161,7 +185,7 @@ enum Setup {
     @discardableResult
     static func install(log: @escaping Log, progress: @escaping Progress = { _, _ in }) -> Bool {
         let log = fileLogged(log, "Install")
-        for step in steps {
+        for step in activeSteps {
             if step.check() {
                 progress(step.id, .done)
                 log("✓ \(step.title)")
@@ -244,12 +268,21 @@ enum Setup {
                 return false
             }
         }
-        for step in steps { progress(step.id, step.check() ? .done : .todo) }
+        for step in activeSteps { progress(step.id, step.check() ? .done : .todo) }
         log("Done. Your sites in \(Paths.docroot) and databases in \(Paths.mariadbData) were kept.")
         return true
     }
 
     // MARK: helpers
+
+    /// Where /opt/homebrew/bin/miniamp finally points, if it is a symlink.
+    private static func cliTarget() -> String? {
+        guard (try? FileManager.default.destinationOfSymbolicLink(atPath: Paths.cliLink)) != nil else { return nil }
+        return URL(fileURLWithPath: Paths.cliLink).resolvingSymlinksInPath().path
+    }
+
+    /// `brew install` links the CLI itself; that link belongs to Homebrew.
+    private static func brewManagedCLI() -> Bool { cliTarget()?.hasPrefix(Paths.brewCellar) == true }
 
     /// PHP's built-in server has no directory listing, so without an index page "/" is a 404.
     private static func hasIndex() -> Bool {

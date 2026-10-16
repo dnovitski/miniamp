@@ -14,6 +14,8 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    env:
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,3 +52,15 @@ jobs:
           gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
           gh release create "$GITHUB_REF_NAME" "Miniamp-$VERSION.zip" \
             --title "Miniamp $VERSION" --generate-notes
+
+      - name: Update Homebrew tap
+        if: github.ref_type == 'tag' && env.TAP_TOKEN != ''
+        run: |
+          url="https://github.com/$GITHUB_REPOSITORY/archive/refs/tags/$GITHUB_REF_NAME.tar.gz"
+          sha=$(curl -fsSL "$url" | shasum -a 256 | cut -d' ' -f1)
+          git clone "https://x-access-token:$TAP_TOKEN@github.com/dnovitski/homebrew-tap.git" tap
+          sed -i '' -E "s#^  url \".*\"#  url \"$url\"#; s#^  sha256 \".*\"#  sha256 \"$sha\"#" tap/Formula/miniamp.rb
+          cd tap
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -am "miniamp $VERSION"
+          git push

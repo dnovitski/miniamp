@@ -14,6 +14,8 @@ works much the same way.
 
 Everything listens on `127.0.0.1` only, so the `root`/`root` defaults are not reachable from the network.
 
+![Miniamp: the Servers and Setup tabs](docs/screenshot.png)
+
 ## Requirements
 
 - Apple Silicon Mac, macOS 14 or later
@@ -22,11 +24,37 @@ Everything listens on `127.0.0.1` only, so the `root`/`root` defaults are not re
 
 ## Install
 
+### With Homebrew (recommended)
+
+```bash
+brew install dnovitski/tap/miniamp
+```
+
+Then open the control panel with `miniamp open` and click **Install** on the **Setup** tab, or run `miniamp install`.
+This also puts a copy of Miniamp in `~/Applications`, so you can start it from Spotlight and Launchpad.
+
+Homebrew builds the app on your Mac, so macOS does not block it the way it blocks downloaded apps.
+
+To update, run `brew upgrade miniamp`, then click **Repair** (or run `miniamp install`) to refresh the copy in
+`~/Applications`.
+
+### Manual download
+
 1. Download `Miniamp-<version>.zip` from the [latest release](https://github.com/dnovitski/miniamp/releases/latest).
-2. Unzip it and move **Miniamp.app** to Applications (or `~/Applications`).
-3. Open it. The app is not notarized, so macOS blocks it the first time: open System Settings → Privacy & Security
-   and click **Open Anyway** next to "Miniamp".
-4. On the **Setup** tab, click **Install** and follow the log.
+2. Unzip it and move **Miniamp.app** to `~/Applications`.
+3. The app is not notarized, so macOS blocks the downloaded copy. Remove the quarantine flag once, which needs no admin
+   rights:
+
+   ```bash
+   xattr -dr com.apple.quarantine ~/Applications/Miniamp.app
+   ```
+
+   With admin rights you can instead open it once and click **Open Anyway** under System Settings → Privacy &
+   Security.
+4. Open Miniamp, click **Install** on the **Setup** tab and follow the log.
+
+If you switch from a manual download to Homebrew, run `brew link --overwrite miniamp` so Homebrew takes over the
+`miniamp` command.
 
 ## Control panel
 
@@ -37,7 +65,7 @@ toggles *Start at login*, and opens the website, phpMyAdmin, the document root a
 
 | Button | What it does |
 |---|---|
-| Install / Repair | Runs every step that is not done yet: Homebrew packages, MariaDB on 127.0.0.1 with root/root, phpMyAdmin auto-login, web server, `miniamp` command. Then it turns on *Start at login* and starts both servers. Safe to repeat. |
+| Install / Repair | Runs every step that is not done yet: Homebrew packages, MariaDB on 127.0.0.1 with root/root, phpMyAdmin auto-login, web server, `miniamp` command, and for Homebrew installs the copy in `~/Applications`. Then it turns on *Start at login* and starts both servers. Safe to repeat. |
 | Update Packages | `brew upgrade php mariadb phpmyadmin`, restarts what was running, then repairs the setup if needed |
 | Uninstall… | Stops the servers and removes the Miniamp configuration, optionally also the Homebrew packages. Sites and databases are always kept. |
 
@@ -82,6 +110,7 @@ Both servers are launchd LaunchAgents in your own login session, so no root is i
 | `Sources/App.swift`, `Sources/Views.swift` | The SwiftUI control panel and menu bar |
 | `Sources/main.swift` | Starts the CLI when called with a command, else the app |
 | `tools/icon.swift` | Renders the app icon and `logo.png` |
+| `docs/screenshot.png` | The screenshot above |
 | `build.sh` | Builds `build/Miniamp.app` (`--install` copies it to `~/Applications`) |
 
 ## Building and releasing
@@ -93,7 +122,8 @@ Building needs Xcode or the Command Line Tools:
 ```
 
 GitHub Actions builds every push on a macOS runner. Pushing a tag `v1.2.3` publishes a release with
-`Miniamp-1.2.3.zip`.
+`Miniamp-1.2.3.zip`, and updates the formula in [dnovitski/homebrew-tap](https://github.com/dnovitski/homebrew-tap)
+if the repository has a `TAP_TOKEN` secret (a token that can push to the tap).
 
 ## Trademarks
 

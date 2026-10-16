@@ -22,6 +22,9 @@ enum Paths {
     static let phpMyAdmin = brew + "/share/phpmyadmin"
     static let phpMyAdminConfig = brew + "/etc/phpmyadmin.config.inc.php"
     static let cliLink = brew + "/bin/miniamp"
+    static let brewCellar = brew + "/Cellar/miniamp/"
+    static let brewApp = brew + "/opt/miniamp/Miniamp.app"  // stable across `brew upgrade`
+    static let userApp = home + "/Applications/Miniamp.app"
     static let support = home + "/Library/Application Support/miniamp"
     static let router = support + "/router.php"
     static let agents = home + "/Library/LaunchAgents"
@@ -37,7 +40,22 @@ enum AppInfo {
     static let executable = Bundle.main.executableURL!.resolvingSymlinksInPath()
     /// "Miniamp.app" (Contents/MacOS/<exe> -> three levels up).
     static let bundleURL = executable.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    static let version = (Bundle(url: bundleURL)?.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
+    static let info = plist(ofApp: bundleURL.path) ?? [:]
+    static let version = info["CFBundleShortVersionString"] as? String ?? "dev"
+    /// Installed with `brew install dnovitski/tap/miniamp` (running from the Cellar).
+    static let isHomebrew = executable.path.hasPrefix(Paths.brewCellar)
+
+    /// "1.2.0 (42)" of a Miniamp app bundle, to tell whether a copy is current; nil if it is not Miniamp.
+    static func versionString(ofApp path: String) -> String? {
+        guard let other = plist(ofApp: path),
+              other["CFBundleIdentifier"] as? String == info["CFBundleIdentifier"] as? String else { return nil }
+        return "\(other["CFBundleShortVersionString"] ?? "?") (\(other["CFBundleVersion"] ?? "?"))"
+    }
+
+    /// Read directly instead of via Bundle, which caches and would miss a freshly copied version.
+    private static func plist(ofApp path: String) -> [String: Any]? {
+        NSDictionary(contentsOfFile: path + "/Contents/Info.plist") as? [String: Any]
+    }
 }
 
 enum Status {

@@ -60,15 +60,15 @@ final class SetupModel: ObservableObject {
         let text: String
     }
 
-    @Published private(set) var states: [String: StepState] = [:]
-    @Published private(set) var lines: [Line] = []
+    @Published var states: [String: StepState] = [:]
+    @Published var lines: [Line] = []
     @Published private(set) var running = false
     @Published private(set) var checked = false
 
     private let queue = DispatchQueue(label: "miniamp.setup")
     var onFinish: () -> Void = {}
 
-    var isInstalled: Bool { Setup.steps.allSatisfy { states[$0.id] == .done } }
+    var isInstalled: Bool { Setup.activeSteps.allSatisfy { states[$0.id] == .done } }
     var logText: String { lines.map(\.text).joined(separator: "\n") }
 
     init() { refresh() }
@@ -77,7 +77,7 @@ final class SetupModel: ObservableObject {
         guard !running else { return }
         queue.async {
             var result: [String: StepState] = [:]
-            for step in Setup.steps { result[step.id] = step.check() ? .done : .todo }
+            for step in Setup.activeSteps { result[step.id] = step.check() ? .done : .todo }
             DispatchQueue.main.async {
                 self.states = result
                 self.checked = true
