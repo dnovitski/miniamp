@@ -1,0 +1,52 @@
+# Builds Miniamp on every push and pull request.
+# Pushing a tag like v1.2.3 also publishes a GitHub Release with "Miniamp-1.2.3.zip".
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=0.0.0-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build
+        run: BUILD_NUMBER=$GITHUB_RUN_NUMBER ./build.sh
+
+      - name: Smoke test
+        run: |
+          "build/Miniamp.app/Contents/MacOS/Miniamp" version
+          codesign --verify --verbose "build/Miniamp.app"
+
+      - name: Package
+        run: ditto -c -k --keepParent "build/Miniamp.app" "Miniamp-$VERSION.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Miniamp-${{ env.VERSION }}
+          path: Miniamp-*.zip
+
+      - name: Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Re-pushing a tag replaces its release.
+          gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
+          gh release create "$GITHUB_REF_NAME" "Miniamp-$VERSION.zip" \
+            --title "Miniamp $VERSION" --generate-notes
